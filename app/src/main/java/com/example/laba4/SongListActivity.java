@@ -1,36 +1,47 @@
 package com.example.laba4;
+
 import android.database.Cursor;
 import android.os.Bundle;
 import android.widget.ListView;
-import android. widget.SimpleCursorAdapter;
+import android.widget.SimpleCursorAdapter;
 
 import androidx.appcompat.app.AppCompatActivity;
 
 public class SongListActivity extends AppCompatActivity {
-    private DatabaseHelper dbHelper;
-    private ListView songListView;
+    private DatabaseHelper databaseHelper;
+    private ListView listView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_song_list);
 
-        dbHelper = new DatabaseHelper(this);
-        songListView = findViewById(R.id.songListView);
+        listView = findViewById(R.id.weatherListView);
+        databaseHelper = new DatabaseHelper(this);
 
-        loadSongs();
+        loadWeatherData();
     }
 
-    private void loadSongs() {
-        Cursor cursor = dbHelper.getAllSongs();
+    private void loadWeatherData() {
+        Cursor cursor = databaseHelper.getAllWeather();
+        String[] from = {DatabaseHelper.COLUMN_CITY, DatabaseHelper.COLUMN_TEMPERATURE};
+        int[] to = {android.R.id.text1, android.R.id.text2};
+
         SimpleCursorAdapter adapter = new SimpleCursorAdapter(
                 this,
                 android.R.layout.simple_list_item_2,
                 cursor,
-                new String[]{"artist", "title"},
-                new int[]{android.R.id.text1, android.R.id.text2},
+                from,
+                to,
                 0
         );
-        songListView.setAdapter(adapter);
+
+        listView.setAdapter(adapter);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        databaseHelper.close();
     }
 }
