@@ -1,7 +1,6 @@
 package com.example.laba4;
 
 import android.content.Context;
-import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.AsyncTask;
@@ -19,17 +18,16 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 
-import okhttp3.FormBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
-import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class MainActivity extends AppCompatActivity {
-    private DatabaseHelper dbHelper;
+    private static final String API_KEY = "dcbb690643d50831f735d15336758d3b";
+    private static final String CITY_NAME = "Voronezh";
+    private static final int POLLING_INTERVAL = 60000; // 60 seconds
     private Handler handler;
-    private static final int POLLING_INTERVAL = 20000; // 20 seconds
-    private TextView currentSongTextView;
+    private TextView weatherTextView;
     private TextView statusTextView;
 
     @Override
@@ -37,17 +35,12 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        dbHelper = new DatabaseHelper(this);
         handler = new Handler(Looper.getMainLooper());
-
-        currentSongTextView = findViewById(R.id.currentSongTextView);
+        weatherTextView = findViewById(R.id.weatherTextView);
         statusTextView = findViewById(R.id.statusTextView);
 
-        Button viewHistoryButton = findViewById(R.id.viewHistoryButton);
-        viewHistoryButton.setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, SongListActivity.class);
-            startActivity(intent);
-        });
+        Button refreshButton = findViewById(R.id.refreshButton);
+        refreshButton.setOnClickListener(v -> fetchWeatherData());
 
         if (!isNetworkAvailable()) {
             statusTextView.setText("Нет подключения к интернету. Автономный режим.");
@@ -55,7 +48,8 @@ public class MainActivity extends AppCompatActivity {
                     Toast.LENGTH_LONG).show();
         } else {
             statusTextView.setText("Подключено к интернету");
-            startPolling();
+            fetchWeatherData(); // Fetch weather data immediately
+            startPolling(); // Start polling for updates
         }
     }
 
@@ -71,25 +65,29 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 if (isNetworkAvailable()) {
-                    new FetchSongTask().execute();
+                    fetchWeatherData(); // Fetch weather data periodically
                 }
                 handler.postDelayed(this, POLLING_INTERVAL);
             }
-        }, 0); // Start immediately, then every POLLING_INTERVAL
+        }, 0); // Start immediately
     }
 
-    private class FetchSongTask extends AsyncTask<Void, Void, String> {
+    private void fetchWeatherData() {
+        if (isNetworkAvailable()) {
+            new FetchWeatherTask().execute();
+        } else {
+            statusTextView.setText("Нет подключения к интернету.");
+        }
+    }
+
+    private class FetchWeatherTask extends AsyncTask<Void, Void, String> {
         @Override
         protected String doInBackground(Void... voids) {
             OkHttpClient client = new OkHttpClient();
-            RequestBody formBody = new FormBody.Builder()
-                    .add("login", "4707login")
-                    .add("password", "4707pass")
-                    .build();
+            String url = "https://api.openweathermap.org/data/2.5/weather?q=" + CITY_NAME + "&appid=" + API_KEY + "&units=metric";
 
             Request request = new Request.Builder()
-                    .url("http://media.ifmo.ru/api_get_current_song.php")
-                    .post(formBody)
+                    .url(url)
                     .build();
 
             try {
@@ -108,25 +106,15 @@ public class MainActivity extends AppCompatActivity {
             if (jsonData != null) {
                 try {
                     JSONObject json = new JSONObject(jsonData);
-                    if (json.getString("result").equals("success")) {
-                        String info = json.getString("info");
-                        currentSongTextView.setText("Текущий трек: " + info);
-                        String[] parts = info.split(" – ");
-                        if (parts.length == 2) {
-                            String artist = parts[0];
-                            String title = parts[1];
-                            String lastSong = dbHelper.getLastSong();
-                            if (!lastSong.equals(artist + " - " + title)) {
-                                dbHelper.addSong(artist, title);
-                            }
-                        }
-                    }
+                    String weatherDescription = json.getJSONArray("weather").getJSONObject(0).getString("description");
+                    double temperature = json.getJSONObject("main").getDouble("temp");
+                    weatherTextView.setText("Погода в Воронеже: " + weatherDescription + ", Температура: " + temperature + "°C");
                 } catch (JSONException e) {
                     e.printStackTrace();
-                    currentSongTextView.setText("Ошибка получения данных");
+                    weatherTextView.setText("Ошибка получения данных");
                 }
             } else {
-                currentSongTextView.setText("Не удалось получить данные");
+                weatherTextView.setText("Не удалось получить данные");
             }
         }
     }
